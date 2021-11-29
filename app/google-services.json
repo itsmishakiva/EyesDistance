@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "318726831792",
+    "project_id": "android-eyes-detec",
+    "storage_bucket": "android-eyes-detec.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:318726831792:android:dbf77e7eef3f97af388575",
+        "android_client_info": {
+          "package_name": "com.eyes.distance"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "318726831792-2bvqhh764hiagdnpuvltn4ih2ndgmkqg.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBmVin6tYqF0bruWA31sCqMoKX2fb1Ps3c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "318726831792-2bvqhh764hiagdnpuvltn4ih2ndgmkqg.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
