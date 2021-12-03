@@ -8,9 +8,11 @@
 
     <Button
         android:id="@+id/cameraButton"
-        android:layout_width="149dp"
-        android:layout_height="101dp"
+        android:layout_width="150dp"
+        android:layout_height="100dp"
+        android:fontFamily="@font/futura"
         android:text="Start"
+        android:textColor="#FFFFFF"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"

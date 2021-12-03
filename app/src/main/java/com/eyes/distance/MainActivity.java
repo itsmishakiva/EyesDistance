@@ -2,11 +2,13 @@ package com.eyes.distance;
 
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatDelegate;
 import androidx.camera.core.Camera;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import android.Manifest;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -27,6 +29,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
         setContentView(R.layout.activity_main);
         Button enableCamera = findViewById(R.id.cameraButton);
         if (!Settings.canDrawOverlays(this)) {
@@ -37,6 +40,7 @@ public class MainActivity extends AppCompatActivity {
             @RequiresApi(api = Build.VERSION_CODES.M)
             @Override
             public void onClick(View v) {
+                requestAutoStart();
                 if (hasCameraPermission()) {
                     enableCamera();
                 } else {
@@ -59,6 +63,15 @@ public class MainActivity extends AppCompatActivity {
                 CAMERA_PERMISSION,
                 CAMERA_REQUEST_CODE
         );
+    }
+
+    private void requestAutoStart() {
+        String manufacturer = "xiaomi";
+        if(manufacturer.equalsIgnoreCase(android.os.Build.MANUFACTURER)) {
+            Intent intent = new Intent();
+            intent.setComponent(new ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity"));
+            startActivity(intent);
+        }
     }
 
     private void enableCamera() {

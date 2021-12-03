@@ -19,6 +19,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.util.Log;
 import android.util.Size;
+import android.view.Display;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
@@ -70,17 +71,17 @@ public class CameraService extends LifecycleService {
             }
         }
     };
-    int delay = 300;
+    int delay = 1000;
     boolean started = false;
     boolean dialogOpened = false;
     private ListenableFuture<ProcessCameraProvider> cameraProviderFuture;
-    ImageCapture imageCapture = new ImageCapture.Builder().build();
+    ImageCapture imageCapture = new ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build();
     FirebaseVisionFaceDetector detector = FirebaseVision.getInstance()
             .getVisionFaceDetector(new FirebaseVisionFaceDetectorOptions.Builder()
                     .setPerformanceMode(FirebaseVisionFaceDetectorOptions.FAST)
                     .setLandmarkMode(FirebaseVisionFaceDetectorOptions.ALL_LANDMARKS)
                     .build());
-    Window window;
+    public static Window window;
 
     @RequiresApi(api = Build.VERSION_CODES.O)
     @Override
@@ -100,12 +101,6 @@ public class CameraService extends LifecycleService {
         started = true;}
         Log.d("SERVICE", "CREATE");
        super.onCreate();
-    }
-
-    @Override
-    public void onTaskRemoved(Intent rootIntent) {
-        Log.d("TEST", "REMOVED");
-        super.onTaskRemoved(rootIntent);
     }
 
     @Override
@@ -134,6 +129,7 @@ public class CameraService extends LifecycleService {
     public void onDestroy() {
         stop = true;
         window.close();
+        Log.d("SERVICE", "CLOSE_WINDOW");
         handler.removeCallbacks(runnable);
         handler.removeCallbacksAndMessages(null);
         stopForeground(true);
@@ -235,12 +231,16 @@ public class CameraService extends LifecycleService {
     @SuppressLint("UnsafeExperimentalUsageError")
     public void analyze(Bitmap bitmap) {
         if (bitmap == null) {
+            window.close();
             return;
         }
         byte[] imgBytes = getNV21(bitmap.getWidth(), bitmap.getHeight(), bitmap);
+        Display display = ((WindowManager)
+                getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay();
+        int screenOrientation = display.getRotation();
         FirebaseVisionImageMetadata firebaseVisionImageMetadata = new FirebaseVisionImageMetadata.Builder()
                 .setFormat(FirebaseVisionImageMetadata.IMAGE_FORMAT_NV21).
-                        setRotation(FirebaseVisionImageMetadata.ROTATION_0).setHeight(bitmap.getHeight()).setWidth(bitmap.getWidth())
+                        setRotation(screenOrientation).setHeight(bitmap.getHeight()).setWidth(bitmap.getWidth())
                 .build();
         FirebaseVisionImage image =
                 FirebaseVisionImage.fromByteArray(imgBytes, firebaseVisionImageMetadata);
@@ -248,33 +248,32 @@ public class CameraService extends LifecycleService {
                 .addOnSuccessListener(
                         faces -> {
                             if (faces.size() <= 0){
+                                //window.close();
+                                window.close();
                                 return;
                             }
                             double yAngle = faces.get(0).getHeadEulerAngleY();
                             double zAngle = faces.get(0).getHeadEulerAngleZ();
-                            double eyesDistance = abs(faces.get(0).getLandmark(4).getPosition().getX() - faces.get(0).getLandmark(10).getPosition().getX());
+                            double eyesDistance = pow(pow(faces.get(0).getLandmark(4).getPosition().getX() - faces.get(0).getLandmark(10).getPosition().getX(), 2) + pow(faces.get(0).getLandmark(4).getPosition().getY() - faces.get(0).getLandmark(10).getPosition().getY(), 2), 0.5);
                             double yAddition = abs(eyesDistance * pow(Math.tan(yAngle / 180 * 3.14), 2))/3.11;
-                            double zAddition = abs(eyesDistance * pow(Math.tan(zAngle / 180 * 3.14), 2))/2.61;
-                            double faceDistance = 400 / (eyesDistance + yAddition + zAddition) * 35;
-                            if (getForegroundServiceType() == 0) stopSelf();
-                            if (faceDistance < 35) {
+                            //double zAddition = abs(eyesDistance * pow(Math.tan(zAngle / 180 * 3.14), 2))/2.61;
+                            double faceDistance = 400 / (eyesDistance + yAddition) * 35;
+                            if (faceDistance < 35 && !stop) {
                                 //Log.d("DISTANCE", "TOO LITTLE");
-                                if (!dialogOpened) {
-                                    dialogOpened = true;
-                                    window.open("TOO CLOSE TO SCREEN");
-                                }
+                                    window.open("TOO CLOSE TOO SCREEN");
+
                             } else {
                                 //Log.d("DISTANCE", "NORMAL");
-                                if (dialogOpened) {
-                                    dialogOpened = false;
-                                    window.close();
-                                }
+                                window.close();
+                                    //window.close();
+
                             }
 
                         }).addOnFailureListener(
                 new OnFailureListener() {
                     @Override
                     public void onFailure(@NonNull Exception e) {
+                        window.close();
                         Log.d("ERROR_FACES", String.valueOf(e) + " ERROR");
                     }
                 });

@@ -25,17 +25,17 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <ImageView
-        android:id="@+id/warningImage"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:alpha="255"
-        android:background="@color/teal_200"
-        android:contentDescription="DESCRIPTION"
+    <Button
+        android:id="@+id/restartButton"
+        android:layout_width="150dp"
+        android:layout_height="100dp"
+        android:background="@color/green_700"
+        android:fontFamily="@font/futura"
+        android:text="Stop"
+        android:textColor="#FFFFFF"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="@+id/preview_view"
-        app:layout_constraintStart_toStartOf="@+id/preview_view"
-        app:layout_constraintTop_toTopOf="@+id/preview_view"
-        tools:srcCompat="@drawable/ic_launcher_foreground" />
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
