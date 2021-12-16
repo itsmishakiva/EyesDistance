@@ -28,6 +28,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.camera.core.CameraSelector;
+import androidx.camera.core.CameraX;
 import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.ImageCapture;
 import androidx.camera.core.ImageCaptureException;
@@ -38,9 +39,11 @@ import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
+import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.LifecycleService;
 
+import com.google.android.gms.common.api.internal.ActivityLifecycleObserver;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.firebase.ml.vision.FirebaseVision;
@@ -62,7 +65,6 @@ public class CameraService extends LifecycleService {
     boolean stop = false;
     Runnable runnable = new Runnable() {
         public void run() {
-            //Log.d("SERVICE", "REPEAT");
             if (!stop){
                 takePicture();
                 handler.postDelayed(runnable, delay);}
@@ -73,7 +75,6 @@ public class CameraService extends LifecycleService {
     };
     int delay = 1000;
     boolean started = false;
-    boolean dialogOpened = false;
     private ListenableFuture<ProcessCameraProvider> cameraProviderFuture;
     ImageCapture imageCapture = new ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build();
     FirebaseVisionFaceDetector detector = FirebaseVision.getInstance()
@@ -81,7 +82,7 @@ public class CameraService extends LifecycleService {
                     .setPerformanceMode(FirebaseVisionFaceDetectorOptions.FAST)
                     .setLandmarkMode(FirebaseVisionFaceDetectorOptions.ALL_LANDMARKS)
                     .build());
-    public static Window window;
+    public Window window;
 
     @RequiresApi(api = Build.VERSION_CODES.O)
     @Override
@@ -105,7 +106,6 @@ public class CameraService extends LifecycleService {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        //Log.d("SERVICE", "COMMAND");
         if (Build.VERSION.SDK_INT >= 26) {
             String CHANNEL_ID = "my_channel_01";
             NotificationChannel channel = new NotificationChannel(CHANNEL_ID,
@@ -115,13 +115,13 @@ public class CameraService extends LifecycleService {
             ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).createNotificationChannel(channel);
 
             Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                    .setContentTitle("")
-                    .setContentText("").build();
+                    .setContentTitle("EyesDistance is running in the foreground")
+                    .setContentText("").setOngoing(true).setSmallIcon(R.drawable.hand).build();
 
             startForeground(1, notification);
         }
         super.onStartCommand(intent, flags, startId);
-        return START_NOT_STICKY;
+        return START_STICKY;
     }
 
     @RequiresApi(api = Build.VERSION_CODES.N)
@@ -146,7 +146,7 @@ public class CameraService extends LifecycleService {
         imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(this), ImageProxy::close);
         CameraSelector cameraSelector = new CameraSelector.Builder()
                 .requireLensFacing(CameraSelector.LENS_FACING_FRONT).build();
-        cameraProvider.bindToLifecycle((LifecycleOwner) this, cameraSelector,
+        cameraProvider.bindToLifecycle(this, cameraSelector,
                 imageAnalysis, imageCapture);
     }
 
@@ -177,7 +177,6 @@ public class CameraService extends LifecycleService {
         byte[] bytes = new byte[buffer.capacity()];
         buffer.get(bytes);
         byte[] clonedBytes = bytes.clone();
-        //Log.d("SERVICE", "DONE");
         return BitmapFactory.decodeByteArray(clonedBytes, 0, clonedBytes.length);
     }
 
@@ -192,8 +191,6 @@ public class CameraService extends LifecycleService {
 
         scaled.recycle();
 
-        //Log.d("NV21", "SUCCESS");
-
         return yuv;
     }
 
@@ -201,22 +198,18 @@ public class CameraService extends LifecycleService {
         final int frameSize = width * height;
         int yIndex = 0;
         int uvIndex = frameSize;
-        int a, R, G, B, Y, U, V;
+        int R, G, B, Y, U, V;
         int index = 0;
         for (int j = 0; j < height; j++) {
             for (int i = 0; i < width; i++) {
-                a = (argb[index] & 0xff000000) >> 24; // a is not used obviously
                 R = (argb[index] & 0xff0000) >> 16;
                 G = (argb[index] & 0xff00) >> 8;
                 B = (argb[index] & 0xff);
-                // well known RGB to YUV algorithm
+
                 Y = ((66 * R + 129 * G + 25 * B + 128) >> 8) + 16;
                 U = ((-38 * R - 74 * G + 112 * B + 128) >> 8) + 128;
                 V = ((112 * R - 94 * G - 18 * B + 128) >> 8) + 128;
 
-                // NV21 has a plane of Y and interleaved planes of VU each sampled by a factor of 2
-                //    meaning for every 4 Y pixels there are 1 V and 1 U.  Note the sampling is every other
-                //    pixel AND every other scanline.
                 yuv420sp[yIndex++] = (byte) ((Y < 0) ? 0 : (Math.min(Y, 255)));
                 if (j % 2 == 0 && index % 2 == 0) {
                     yuv420sp[uvIndex++] = (byte) ((V < 0) ? 0 : (Math.min(V, 255)));
@@ -248,34 +241,24 @@ public class CameraService extends LifecycleService {
                 .addOnSuccessListener(
                         faces -> {
                             if (faces.size() <= 0){
-                                //window.close();
                                 window.close();
                                 return;
                             }
                             double yAngle = faces.get(0).getHeadEulerAngleY();
-                            double zAngle = faces.get(0).getHeadEulerAngleZ();
                             double eyesDistance = pow(pow(faces.get(0).getLandmark(4).getPosition().getX() - faces.get(0).getLandmark(10).getPosition().getX(), 2) + pow(faces.get(0).getLandmark(4).getPosition().getY() - faces.get(0).getLandmark(10).getPosition().getY(), 2), 0.5);
                             double yAddition = abs(eyesDistance * pow(Math.tan(yAngle / 180 * 3.14), 2))/3.11;
-                            //double zAddition = abs(eyesDistance * pow(Math.tan(zAngle / 180 * 3.14), 2))/2.61;
                             double faceDistance = 400 / (eyesDistance + yAddition) * 35;
                             if (faceDistance < 35 && !stop) {
-                                //Log.d("DISTANCE", "TOO LITTLE");
-                                    window.open("TOO CLOSE TOO SCREEN");
-
+                                window.open("TOO CLOSE TOO SCREEN");
                             } else {
-                                //Log.d("DISTANCE", "NORMAL");
                                 window.close();
-                                    //window.close();
 
                             }
 
                         }).addOnFailureListener(
-                new OnFailureListener() {
-                    @Override
-                    public void onFailure(@NonNull Exception e) {
-                        window.close();
-                        Log.d("ERROR_FACES", String.valueOf(e) + " ERROR");
-                    }
+                e -> {
+                    window.close();
+                    Log.d("ERROR_FACES", e + " ERROR");
                 });
     }
 }

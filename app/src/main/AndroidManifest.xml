@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.DISABLE_KEYGUARD"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -33,7 +34,8 @@
             android:name="com.google.firebase.ml.vision.DEPENDENCIES"
             android:value="face" />
         <service android:name="com.eyes.distance.CameraService"
-            android:foregroundServiceType="camera" android:enabled="true"/>
+            android:permission="android.Manifest.permission.FOREGROUND_SERVICE"
+            android:foregroundServiceType="camera" android:enabled="true" android:stopWithTask="false" android:exported="true"/>
     </application>
 
 </manifest>

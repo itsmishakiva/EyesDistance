@@ -36,18 +36,18 @@ public class MainActivity extends AppCompatActivity {
             Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
             startActivityForResult(intent, 0);
         }
-        enableCamera.setOnClickListener(new View.OnClickListener() {
-            @RequiresApi(api = Build.VERSION_CODES.M)
-            @Override
-            public void onClick(View v) {
-                requestAutoStart();
-                if (hasCameraPermission()) {
-                    enableCamera();
-                } else {
-                    requestPermission();
-                }
+        enableCamera.setOnClickListener(v -> {
+            if (hasCameraPermission()) {
+                enableCamera();
+            } else {
+                requestPermission();
             }
         });
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
     }
 
     private boolean hasCameraPermission() {
@@ -63,15 +63,6 @@ public class MainActivity extends AppCompatActivity {
                 CAMERA_PERMISSION,
                 CAMERA_REQUEST_CODE
         );
-    }
-
-    private void requestAutoStart() {
-        String manufacturer = "xiaomi";
-        if(manufacturer.equalsIgnoreCase(android.os.Build.MANUFACTURER)) {
-            Intent intent = new Intent();
-            intent.setComponent(new ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity"));
-            startActivity(intent);
-        }
     }
 
     private void enableCamera() {
