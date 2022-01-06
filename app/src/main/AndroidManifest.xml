@@ -35,7 +35,7 @@
             android:value="face" />
         <service android:name="com.eyes.distance.CameraService"
             android:permission="android.Manifest.permission.FOREGROUND_SERVICE"
-            android:foregroundServiceType="camera" android:enabled="true" android:stopWithTask="false" android:exported="true"/>
+            android:enabled="true" android:stopWithTask="false" android:exported="true"/>
     </application>
 
 </manifest>

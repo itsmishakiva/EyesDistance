@@ -1,50 +1,33 @@
 package com.eyes.distance;
 
 import android.annotation.SuppressLint;
-import android.app.AlertDialog;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
-import android.app.Service;
-import android.content.ComponentName;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.ServiceConnection;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Build;
 import android.os.Handler;
-import android.os.IBinder;
 import android.os.Looper;
 import android.util.Log;
 import android.util.Size;
 import android.view.Display;
-import android.view.View;
 import android.view.WindowManager;
-import android.widget.ImageView;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.camera.core.CameraSelector;
-import androidx.camera.core.CameraX;
 import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.ImageCapture;
 import androidx.camera.core.ImageCaptureException;
 import androidx.camera.core.ImageProxy;
-import androidx.camera.core.Preview;
-import androidx.camera.core.impl.ImageCaptureConfig;
 import androidx.camera.lifecycle.ProcessCameraProvider;
-import androidx.camera.view.PreviewView;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
-import androidx.lifecycle.Lifecycle;
-import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.LifecycleService;
 
-import com.google.android.gms.common.api.internal.ActivityLifecycleObserver;
-import com.google.android.gms.tasks.OnFailureListener;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.firebase.ml.vision.FirebaseVision;
 import com.google.firebase.ml.vision.common.FirebaseVisionImage;
@@ -53,7 +36,6 @@ import com.google.firebase.ml.vision.face.FirebaseVisionFaceDetector;
 import com.google.firebase.ml.vision.face.FirebaseVisionFaceDetectorOptions;
 
 import java.nio.ByteBuffer;
-import java.security.Provider;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 
@@ -63,40 +45,43 @@ import static java.lang.Math.pow;
 public class CameraService extends LifecycleService {
     Handler handler = new Handler(Looper.getMainLooper());
     boolean stop = false;
-    Runnable runnable = new Runnable() {
-        public void run() {
+    Runnable runnable;
+    int delay = 1000;
+    boolean started = false;
+    private ListenableFuture<ProcessCameraProvider> cameraProviderFuture;
+    public Window window;
+    ImageCapture imageCapture;
+    FirebaseVisionFaceDetector detector;
+
+
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    @Override
+    public void onCreate() {
+        Context context = getApplicationContext();
+        cameraProviderFuture = ProcessCameraProvider.getInstance(context);
+        cameraProviderFuture.addListener(() -> {
+            try {
+                imageCapture = new ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build();
+                ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
+                bindImageAnalysis(cameraProvider);
+            } catch (ExecutionException | InterruptedException e) {
+                e.printStackTrace();
+            }
+        }, ContextCompat.getMainExecutor(context));
+        runnable = () -> {
             if (!stop){
                 takePicture();
                 handler.postDelayed(runnable, delay);}
             else{
                 stopSelf(1);
             }
-        }
-    };
-    int delay = 1000;
-    boolean started = false;
-    private ListenableFuture<ProcessCameraProvider> cameraProviderFuture;
-    ImageCapture imageCapture = new ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build();
-    FirebaseVisionFaceDetector detector = FirebaseVision.getInstance()
-            .getVisionFaceDetector(new FirebaseVisionFaceDetectorOptions.Builder()
-                    .setPerformanceMode(FirebaseVisionFaceDetectorOptions.FAST)
-                    .setLandmarkMode(FirebaseVisionFaceDetectorOptions.ALL_LANDMARKS)
-                    .build());
-    public Window window;
-
-    @RequiresApi(api = Build.VERSION_CODES.O)
-    @Override
-    public void onCreate() {
+        };
+        detector = FirebaseVision.getInstance()
+                .getVisionFaceDetector(new FirebaseVisionFaceDetectorOptions.Builder()
+                        .setPerformanceMode(FirebaseVisionFaceDetectorOptions.FAST)
+                        .setLandmarkMode(FirebaseVisionFaceDetectorOptions.ALL_LANDMARKS)
+                        .build());
         if (!started){
-        cameraProviderFuture = ProcessCameraProvider.getInstance(this);
-        cameraProviderFuture.addListener(() -> {
-            try {
-                ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
-                bindImageAnalysis(cameraProvider);
-            } catch (ExecutionException | InterruptedException e) {
-                e.printStackTrace();
-            }
-        }, ContextCompat.getMainExecutor(this));
         window = new Window(this);
         handler.postDelayed(runnable, delay);
         started = true;}
@@ -152,8 +137,7 @@ public class CameraService extends LifecycleService {
 
 
     public void takePicture() {
-        imageCapture.takePicture(Executors.newSingleThreadExecutor(), new ImageCapture.OnImageCapturedCallback()
-        {
+        imageCapture.takePicture(Executors.newSingleThreadExecutor(), new ImageCapture.OnImageCapturedCallback() {
             @RequiresApi(api = Build.VERSION_CODES.Q)
             @SuppressLint("UnsafeExperimentalUsageError")
             @Override
