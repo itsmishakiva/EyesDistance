@@ -14,6 +14,7 @@ import android.os.Looper;
 import android.util.Log;
 import android.util.Size;
 import android.view.Display;
+import android.view.Surface;
 import android.view.WindowManager;
 
 import androidx.annotation.NonNull;
@@ -21,7 +22,6 @@ import androidx.annotation.RequiresApi;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.ImageCapture;
-import androidx.camera.core.ImageCaptureException;
 import androidx.camera.core.ImageProxy;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.core.app.NotificationCompat;
@@ -43,15 +43,15 @@ import static java.lang.Math.abs;
 import static java.lang.Math.pow;
 
 public class CameraService extends LifecycleService {
-    Handler handler = new Handler(Looper.getMainLooper());
-    boolean stop = false;
-    Runnable runnable;
-    int delay = 1000;
-    boolean started = false;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final int delay = 1000;
+    private boolean stop = false;
+    private boolean started = false;
+    private Window window;
+    private Runnable runnable;
+    private ImageCapture imageCapture;
+    private FirebaseVisionFaceDetector detector;
     private ListenableFuture<ProcessCameraProvider> cameraProviderFuture;
-    public Window window;
-    ImageCapture imageCapture;
-    FirebaseVisionFaceDetector detector;
 
 
     @RequiresApi(api = Build.VERSION_CODES.O)
@@ -61,7 +61,9 @@ public class CameraService extends LifecycleService {
         cameraProviderFuture = ProcessCameraProvider.getInstance(context);
         cameraProviderFuture.addListener(() -> {
             try {
-                imageCapture = new ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build();
+                Display display = ((WindowManager) getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay();
+                int screenOrientation = display.getRotation();
+                imageCapture = new ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).setTargetRotation(screenOrientation).build();
                 ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
                 bindImageAnalysis(cameraProvider);
             } catch (ExecutionException | InterruptedException e) {
@@ -69,10 +71,10 @@ public class CameraService extends LifecycleService {
             }
         }, ContextCompat.getMainExecutor(context));
         runnable = () -> {
-            if (!stop){
+            if (!stop) {
                 takePicture();
-                handler.postDelayed(runnable, delay);}
-            else{
+                handler.postDelayed(runnable, delay);
+            } else {
                 stopSelf(1);
             }
         };
@@ -81,19 +83,20 @@ public class CameraService extends LifecycleService {
                         .setPerformanceMode(FirebaseVisionFaceDetectorOptions.FAST)
                         .setLandmarkMode(FirebaseVisionFaceDetectorOptions.ALL_LANDMARKS)
                         .build());
-        if (!started){
-        window = new Window(this);
-        handler.postDelayed(runnable, delay);
-        started = true;}
-        Log.d("SERVICE", "CREATE");
-       super.onCreate();
+        if (!started) {
+            window = new Window(this);
+            handler.postDelayed(runnable, delay);
+            started = true;
+        }
+        super.onCreate();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (Build.VERSION.SDK_INT >= 26) {
             String CHANNEL_ID = "my_channel_01";
-            NotificationChannel channel = new NotificationChannel(CHANNEL_ID,
+            NotificationChannel channel = new NotificationChannel(
+                    CHANNEL_ID,
                     "Channel human readable title",
                     NotificationManager.IMPORTANCE_DEFAULT);
 
@@ -114,19 +117,18 @@ public class CameraService extends LifecycleService {
     public void onDestroy() {
         stop = true;
         window.close();
-        Log.d("SERVICE", "CLOSE_WINDOW");
         handler.removeCallbacks(runnable);
         handler.removeCallbacksAndMessages(null);
         stopForeground(true);
         stopSelf();
-        Log.d("SERVICE", "DESTROY");
         super.onDestroy();
     }
 
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     private void bindImageAnalysis(@NonNull ProcessCameraProvider cameraProvider) {
         ImageAnalysis imageAnalysis =
-                new ImageAnalysis.Builder().setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).setTargetResolution(new Size(1280, 720))
+                new ImageAnalysis.Builder()
+                        .setTargetResolution(new Size(1280, 720))
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build();
         imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(this), ImageProxy::close);
         CameraSelector cameraSelector = new CameraSelector.Builder()
@@ -148,13 +150,9 @@ public class CameraService extends LifecycleService {
                 super.onCaptureSuccess(image);
                 image.close();
             }
-
-            @Override
-            public void onError(@NonNull ImageCaptureException exception) {
-
-            }
         });
     }
+
     private Bitmap getBitmap(ImageProxy image) {
         ByteBuffer buffer = image.getPlanes()[0].getBuffer();
         buffer.rewind();
@@ -165,16 +163,11 @@ public class CameraService extends LifecycleService {
     }
 
     byte[] getNV21(int inputWidth, int inputHeight, Bitmap scaled) {
-
         int[] argb = new int[inputWidth * inputHeight];
-
         scaled.getPixels(argb, 0, inputWidth, 0, 0, inputWidth, inputHeight);
-
         byte[] yuv = new byte[inputWidth * inputHeight * 3 / 2];
         encodeYUV420SP(yuv, argb, inputWidth, inputHeight);
-
         scaled.recycle();
-
         return yuv;
     }
 
@@ -212,37 +205,58 @@ public class CameraService extends LifecycleService {
             return;
         }
         byte[] imgBytes = getNV21(bitmap.getWidth(), bitmap.getHeight(), bitmap);
-        Display display = ((WindowManager)
-                getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay();
+        Display display = ((WindowManager) getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay();
+        int orientation_test = getResources().getConfiguration().orientation; //test
         int screenOrientation = display.getRotation();
+        if (bitmap.getHeight() < bitmap.getWidth()){
+            if (screenOrientation == Surface.ROTATION_0) screenOrientation = Surface.ROTATION_270;
+            else if (screenOrientation == Surface.ROTATION_90) screenOrientation = Surface.ROTATION_0;
+            else if (screenOrientation == Surface.ROTATION_180) screenOrientation = Surface.ROTATION_90;
+            else if (screenOrientation == Surface.ROTATION_270) screenOrientation = Surface.ROTATION_180;
+        }
+        Log.d("ROTATION_TAG_TEST", String.valueOf(orientation_test)); //test
+        Log.d("ROTATION_TAG", String.valueOf(screenOrientation)); //test
+        Log.d("FACE12HEIGHT", String.valueOf(bitmap.getHeight()));
+        Log.d("FACE12WIDTH", String.valueOf(bitmap.getWidth()));
         FirebaseVisionImageMetadata firebaseVisionImageMetadata = new FirebaseVisionImageMetadata.Builder()
-                .setFormat(FirebaseVisionImageMetadata.IMAGE_FORMAT_NV21).
-                        setRotation(screenOrientation).setHeight(bitmap.getHeight()).setWidth(bitmap.getWidth())
+                .setFormat(FirebaseVisionImageMetadata.IMAGE_FORMAT_NV21)
+                .setRotation(screenOrientation)
+                .setHeight(bitmap.getHeight())
+                .setWidth(bitmap.getWidth())
                 .build();
         FirebaseVisionImage image =
                 FirebaseVisionImage.fromByteArray(imgBytes, firebaseVisionImageMetadata);
-        detector.detectInImage(image)
-                .addOnSuccessListener(
-                        faces -> {
-                            if (faces.size() <= 0){
-                                window.close();
-                                return;
-                            }
-                            double yAngle = faces.get(0).getHeadEulerAngleY();
-                            double eyesDistance = pow(pow(faces.get(0).getLandmark(4).getPosition().getX() - faces.get(0).getLandmark(10).getPosition().getX(), 2) + pow(faces.get(0).getLandmark(4).getPosition().getY() - faces.get(0).getLandmark(10).getPosition().getY(), 2), 0.5);
-                            double yAddition = abs(eyesDistance * pow(Math.tan(yAngle / 180 * 3.14), 2))/3.11;
-                            double faceDistance = 400 / (eyesDistance + yAddition) * 35;
-                            if (faceDistance < 35 && !stop) {
-                                window.open("TOO CLOSE TOO SCREEN");
-                            } else {
-                                window.close();
-
-                            }
-
-                        }).addOnFailureListener(
-                e -> {
+        detector.detectInImage(image).addOnSuccessListener(
+                faces -> {
+                    if (faces.size() <= 0) {
+                        window.close();
+                        Log.d("FACE12", "NOT_FOUND");
+                        return;
+                    }
+                    float positionLeftX;
+                    float positionLeftY;
+                    float positionRightX;
+                    float positionRightY;
+                    positionLeftX = faces.get(0).getLandmark(4).getPosition().getX() / bitmap.getWidth() * 2448;
+                    positionLeftY = faces.get(0).getLandmark(4).getPosition().getY() / bitmap.getHeight() * 3264;
+                    positionRightX = faces.get(0).getLandmark(10).getPosition().getX() / bitmap.getWidth() * 2448;
+                    positionRightY = faces.get(0).getLandmark(10).getPosition().getY() / bitmap.getHeight() * 3264;
+                    double yAngle = faces.get(0).getHeadEulerAngleY();
+                    double eyesDistance = pow(pow(positionLeftX - positionRightX, 2) + pow(positionLeftY - positionRightY, 2), 0.5);
+                    double yAddition = abs(eyesDistance * pow(Math.tan(yAngle / 180 * 3.14), 2)) / 3.11;
+                    double faceDistance = 400 / (eyesDistance + yAddition) * 35;
+                    if (faceDistance < 35 && !stop) {
+                        window.open();
+                        Log.d("FACE12", "FOUND");
+                    } else {
+                        window.close();
+                        Log.d("FACE12", "NORMAL DISTANCE");
+                    }
+                }
+        ).addOnFailureListener(e -> {
                     window.close();
-                    Log.d("ERROR_FACES", e + " ERROR");
-                });
+                    Log.d("ERROR_FINDING_FACES", e + " CRITICAL ERROR");
+                }
+        );
     }
 }

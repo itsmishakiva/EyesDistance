@@ -31,7 +31,6 @@ public class CameraActivity extends AppCompatActivity {
             } else {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     context.startForegroundService(intent);
-
                 }
                 buttonText = "STOP";
             }

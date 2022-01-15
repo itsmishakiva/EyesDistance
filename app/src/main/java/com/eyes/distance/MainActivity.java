@@ -1,24 +1,19 @@
 package com.eyes.distance;
 
-import androidx.annotation.RequiresApi;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.app.AppCompatDelegate;
-import androidx.camera.core.Camera;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-
 import android.Manifest;
-import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
 import android.provider.Settings;
-import android.util.Log;
-import android.view.View;
 import android.widget.Button;
+
+import androidx.annotation.RequiresApi;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -33,21 +28,17 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         Button enableCamera = findViewById(R.id.cameraButton);
         if (!Settings.canDrawOverlays(this)) {
-            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
-            startActivityForResult(intent, 0);
+            requestDrawOverlayPermission();
         }
         enableCamera.setOnClickListener(v -> {
-            if (hasCameraPermission()) {
-                enableCamera();
+            if (!hasCameraPermission()) {
+                requestCameraPermission();
+            } else if (!Settings.canDrawOverlays(this)) {
+                requestDrawOverlayPermission();
             } else {
-                requestPermission();
+                enableCamera();
             }
         });
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
     }
 
     private boolean hasCameraPermission() {
@@ -57,7 +48,7 @@ public class MainActivity extends AppCompatActivity {
         ) == PackageManager.PERMISSION_GRANTED;
     }
 
-    private void requestPermission() {
+    private void requestCameraPermission() {
         ActivityCompat.requestPermissions(
                 this,
                 CAMERA_PERMISSION,
@@ -65,10 +56,14 @@ public class MainActivity extends AppCompatActivity {
         );
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.M)
+    private void requestDrawOverlayPermission() {
+        Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
+        startActivityForResult(intent, 0);
+    }
+
     private void enableCamera() {
         Intent intent = new Intent(this, CameraActivity.class);
         startActivity(intent);
     }
-
-
 }
